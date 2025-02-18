@@ -1,0 +1,84 @@
+\documentclass[a4paper,12pt,twoside]{article}
+\usepackage{preamble}
+\usepackage[titlepage,fancysections,pagenumber]{polytechnique}
+
+\title{PHY581C}
+\subtitle{Microelectronics Experimental ASIC Design}
+\author{Gabriel Pereira de Carvalho}
+
+\date{\today}
+
+\begin{document}
+	
+	\maketitle
+	
+	\tableofcontents
+	
+	\newpage
+	
+	\section{Introduction}
+	
+	In this report, we are designing a Silicon Photo-electron Multiplier (SiPM). This type of circuit is used in 
+	\begin{itemize}
+		\item accelerator-based particle and nuclear physics experiments because of their small size, high photon detection efficiency and insensitivity to magnetic fields\cite{SiPM}. In the course, we examined the use of SiPMs in the CERN where the SiPM allows detection and counting of photons with high resolution and single photon sensitivity\cite{SiPM-CERN}.
+		\item and also in Positron Emission Tomography (PET) scans. In these scans, the patients ingest glucose tagged with radioactively unstable isotopes that emit positrons in their decay reaction. The glucose will accumulate in regions of the body with high sugar consumption like the brain and the liver, but also tumors. The positrons emitted combine with electrons in a reaction that forms two photons that fly away from one another at a $180^\circ$ angle. The SiPM are organised in a ring, so the two photons are received by two diametrically opposed detectors\cite{PETscan}.
+	\end{itemize}
+	
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width = .7\textwidth]{images/PETscan.PNG}
+		\caption{Photon detection in PET scan\cite{PETscan}}
+	\end{figure}
+	
+	For my project, I chose to work with the particle accelerator application context. This means, we are going to model our input stimulus considering single photon detection which is not the case for PET scan applications.
+	
+	\section{Modelisation: photodetector}
+	
+	In our application scenario, we consider our input coming from an array of Single Photon Avalanche Diodes (SPADs). We are going to model the scenario where a single cell emits a pulse current while the remaining cells remain inactive.
+	
+	We imagine an array of $100\times100$ SPADs functioning independently but connected to a common readout in parallel, with each cell having its own quenching resistor. The parameters considered are
+	
+	\begin{itemize}
+		\item each cell has dimensions $50\mu m \times 50\mu m$, a capacitance of $100fF$ and a quenching resistor of $100k\Omega$.
+		\item one photo electron corresponds to a charge of $100fC$ which is equivalent to a current pulse of $1mA$. The duration of the pulse is estimated as $100ps$, with a rise time of $1ps$ and a fall time of $1ps$.
+	\end{itemize}
+	
+	When one of the capacitances receives the current pulse, the remaining $10^4 - 1$ cells can be simplified to a single cell with
+	
+	\begin{align}
+		\begin{cases}
+			C_{eq} &\approx 1nF \\
+			R_{eq} &\approx 10\Omega
+		\end{cases}
+	\end{align}
+	
+	To model the noise in the readout bus, we consider a parasitic inductance of $L_{\text{parasitic}} = 10nH$.
+	
+	\begin{figure}[h]
+		\centering
+		\includegraphics[width = .7\textwidth]{images/SiPM_block.PNG}
+		\caption{Photodetector block schematic}
+	\end{figure}
+	
+	\section{The preamplifier}
+	
+	\subsection{Schematic}
+	
+	\subsection{Layout}
+	
+	\subsection{Simulation Results}
+	
+	\section{The discriminator}
+	
+	\subsection{Schematic}
+	
+	\subsection{Layout}
+	
+	\subsection{Simulation Results}
+	
+	\section{Conclusion}
+	
+	\bibliographystyle{plain} % We choose the "plain" reference style
+	\bibliography{refs} % Entries are in the refs.bib file
+
+\end{document}
