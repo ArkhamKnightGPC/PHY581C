@@ -1,5 +1,8 @@
 \documentclass[a4paper,12pt,twoside]{article}
 \usepackage{preamble}
+\usepackage{circuitikz}
+\usepackage{amsmath, amssymb, amscd, amsthm, amsfonts}
+\usepackage{subfigure}
 \usepackage[titlepage,fancysections,pagenumber]{polytechnique}
 
 \title{PHY581C}
@@ -36,7 +39,7 @@
 	
 	In our application scenario, we consider our input coming from an array of Single Photon Avalanche Diodes (SPADs). We are going to model the scenario where a single cell emits a pulse current while the remaining cells remain inactive.
 	
-	We imagine an array of $100\times100$ SPADs functioning independently but connected to a common readout in parallel, with each cell having its own quenching resistor. The parameters considered are
+	We consider an array of $100\times100$ SPADs functioning independently but connected to a common readout in parallel, with each cell having its own quenching resistor. The parameters considered are
 	
 	\begin{itemize}
 		\item each cell has dimensions $50\mu m \times 50\mu m$, a capacitance of $100fF$ and a quenching resistor of $100k\Omega$.
@@ -60,23 +63,241 @@
 		\caption{Photodetector block schematic}
 	\end{figure}
 	
+	\newpage
+	
 	\section{The preamplifier}
+	
+	The input voltage of the photodetector module is small ($\approx 0.1$mV). This means we need to amplify it before we can feed it to a discriminator module. In this section, we'll describe our preamplifier model and the simulations results both for transient analysis and AC response. Our goal is to have an output signal peak as high as possible and at least three times bigger than the total RMS noise so we confidently define a threshold voltage for the discriminator module.
 	
 	\subsection{Schematic}
 	
+	\subsubsection{Designing a CMOS current source}
+	
+	In other to extract a component from our design using only instances from the TSMC library provided, we cannot have any ideal current sources in our design. So, we designed a CMOS current source module.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/TwoStage_currentMirror.PNG}
+		\label{Current_Source}
+		\caption{Current source design: NMOS current sink with PMOS current source}
+	\end{figure}
+	
+	We know that for an NMOS transistor in saturation the current from drain to source is given by
+	
+	\begin{equation}
+		I_D = \frac{1}{2} \mu_n C_{ox} \left( \frac{W}{L} \right) (V_{GS} - V_{TH})^2
+	\end{equation} 
+	
+	So suppose we have an ideal current source $I_{ideal}$ we want to replace. We can choose the polarisation resistance $R_0$ so that the reference current at transistor $M_0$ is equal to $I_{ideal}$. Because $V_{D_0} = V_{G_0}$, we know that $M_0$ is in saturation. Now the current mirror configuration gives $V_{GS_0} = V_{GS_1} \implies I_{D_0} = I_{D_1}$.
+	
+	We observe that it is important that $I_{D_1} = I_{D_0} = I_{D_1}$ so it important that $\left(\frac{W}{L}\right)_0 = \left(\frac{W}{L}\right)_1$ if we want to copy the current. We can also modify the ratio of $\frac{W}{L}$ if we want to amplify to current at the output.
+	
+	I tried using this simple current mirror module with only $M_0$ and $M_1$ but during simulation I observed that $g_{DS} = \lambda I_{D_1}$ at $M_1$ was too small. In chapter 10 of Neaman\cite{CurrentS}, this effect is described as a consequence of the finite early voltage at $M_1$. He gives
+	
+	\begin{equation}
+		\frac{I_{out}}{I_{ref}} = \frac{1}{1 + \frac{2}{\beta}} \cdot \frac{1 + \frac{V_{DS_1}}{V_E}}{1 + \frac{V_{DS_0}}{V_E}} = \frac{1}{1 + \frac{2}{\beta}} \cdot \frac{1 + \frac{V_{load}}{V_E}}{1 + \frac{V_{GS_0}}{V_E}}
+	\end{equation}
+	
+	This implies that $\frac{d I_{out}}{d V_{load}} = \frac{I_{out}}{V_E} = \frac{1}{r_0}$.
+	
+	For this reason, we added a PMOS current source to our current source (also called a \textit{current buffer}). We observe that $|I_{DS_1}| = |I_{DS_2}|$, so the current mirror at the PMOS stage is the same current at the output of the NMOS stage. But because $M_2$ and $M_3$ are in a common gate configuration, we get a large output impedance.
+	
+	\begin{equation}
+		R_{out} = g_{m_3} g_{DS_3} g_{DS_2} 
+	\end{equation}
+	
+	We observe that in the preamplifier we use large transistors in our current source module because we want to replicate big current sources $100 mA$, later in the discriminator we will want smaller currents so the current mirrors will have much smaller transistors.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/cascode_preamp.PNG}
+		\label{Cascode_preamp}
+		\caption{Final cascode configuration for preamplifier}
+	\end{figure}
+	
+	\subsubsection{Designing the core cascode amplifier}
+	
+	Now that we have described the CMOS current source module we used many many times in this project, let's talk about the core of our preamplifier.
+	
+	We  started with a single stage common source amplifier with the transistor \texttt{nmos\_amp}. This configuration was easy to implement and gave good results in the transient analysis simulations. However, later we moved to a cascode configuration adding the transistor \texttt{nmos\_cascode} in a common gate configuration. We did this for two main reasons:
+	\begin{itemize}
+		\item we could get even higher gains using a two stage configuration $A_v = \left(\frac{g_{m_1}}{g_{ds_1}}\right)\cdot \left(\frac{g_{m_2}}{g_{ds_2}}\right)$;
+		\item and to increase the bandwidth observed in the Bode plot simulations (consequence of the \textit{Miller Effect}).
+	\end{itemize}
+	
+
+	The current source connected at the source of \texttt{nmos\_cascode}  biases the transistor in the saturation region because $V_G$ is fixed by the voltage divider and $I_D = \frac{1}{2} \mu_n C_{ox} \left( \frac{W}{L} \right) (V_{GS} - V_{TH})^2$. It also fixes the voltage at the drain of \texttt{nmos\_amp} to biais it in the saturation region. The current mirror helps increase the output resistance of the module and keep the output stable.
+	
+	\subsubsection{Complete preamplifier}
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/preamp_ROBIN.PNG}
+		\label{preamp_robin}
+		\caption{Complete schematic for the preamplifier module}
+	\end{figure}
+	
 	\subsection{Layout}
 	
+	In the layout view, Virtuoso uses the TSMC library's technology file to represent the real circuit design based on the schematic view. While Virtuoso can automatically place the instances, it was our job to connect all the nets in our circuit. To check that the design was physically feasible and compatible with the schematic, we performed DRC (Design Rules Check) and LVS (Layout vs. Schematic) tests.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/avExtracted.PNG}
+		\label{avExtracted}
+		\caption{Layout for preamplifier}
+	\end{figure}
+	
+	The error messages in DRC concerned Minimum spacing and width of metal paths used, and contact and via rules. The LVS errors were harder to correct, because sometimes a certain terminal needed multiple connections (detached bodies to the right and left of each transistor, gate connections on the top and bottom). On transistors with multiple fingers it was possible to connect all source and drain fingers to simplify connections.
+	
+	One interesting thing in my project is that after passing DRC and LVS, my extracted view had a very different behavior from the simulations I ran in the schematic. Because my design includes small resistances (of the order of $1k\Omega$) the small width on the metal paths was increasing the resistance on certain connections a lot and making me lose a lot of gain. The layout in the figure has bigger and widder metal connections that resulted in smaller resistances and allowed me to increase my gain by a factor of $4.6$.
+	
+	\begin{figure}[h!]
+		\centering
+		\subfigure[In first layout, output peaks at $\approx 0.5mV$]{
+			\includegraphics[width=.6\textwidth]{images/Config_avExtracted_firstSimulation.PNG}
+			\label{config1}
+		}
+		\hfill
+		\subfigure[In first layout, output peaks at $\approx 2.3mV$]{
+			\includegraphics[width=.6\textwidth]{images/Config_avExtracted_secondSimulation.PNG}
+			\label{config2}
+		}
+		\caption{Transient response simulations on extracted views. In (b), gain is bigger by a factor of $\approx 4.6$.}
+		\label{simuConfig}
+	\end{figure}
+	
+	In both the plots above, we have subtracted the DC point to make it easier to compare the signals. However, to choose a threshold for the discriminator, we need to know the DC point of our pre-amplifier. In figure 8, we can see a good value is $\approx 435$mV.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/transientResponse_PREAMP.PNG}
+		\label{fig:transient}
+		\caption{Transient response with DC point}
+	\end{figure}
+	
 	\subsection{Simulation Results}
+	
+	In this subsection, let's look at the AC simulation results for the pre-amplifier.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/niceGainBode.PNG}
+		\label{Bode}
+		\caption{Bode plot shows stable gain until very high frequencies}
+	\end{figure}
+	
+	In the bode plot, we can see that the preamplifier is a low-pass filter, but with very stable gain of $\approx 32$dB until very high frequencies (the cutoff frequency is very high, which is one of the reasons we chose the cascode configuration).
+	
+	The RMS noise computed by the simulation for $f \in (1 \text{Hz}, 10\text{GHz})$ was $694 \micro V = 0.7 mV$. So, our peak voltage is sufficiently high to define a threshold for the discriminator.
+	
+	\newpage
 	
 	\section{The discriminator}
 	
+	After the pre-amplifier, our goal is to take the output signal and
+	\begin{enumerate}
+		\item determine if a photon was detected (the peak of the signal is above a certain threshold voltage);
+		\item and produce a digital signal if a photon was detected (so far, we are working only with analog signals, but if we want to use this signal in software, it must saturate to $V_{SS}$ or $V_{DD}$).
+	\end{enumerate}
+	
 	\subsection{Schematic}
+	
+	The basic stage of our discriminator is the differential pair amplifier.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/diffPair.PNG}
+		\label{diffPair}
+		\caption{Schematic for a differential pair amplifier\cite{CurrentS}}
+	\end{figure}
+	
+	Let's analyze the DC operating point of this circuit $\implies$ for now, suppose both inputs are grounded. We have
+	
+	\begin{align}
+		I_{D_1} + I_{D_2} = I_Q \\
+		I_{D_1} = I_{D2} \quad \text{ by symmetry}
+	\end{align}
+	
+	The drain current is fixed by the current source $\implies$ supposing both transistors are in saturation, the source voltages will settle at a value that satisfies $I_{D_1} = I_{D2} = \frac{I_Q}{2}$. Now suppose $V_{G_1} > V_{G_2} \implies V_{GS_1} > V_{GS_2} \implies I_{D_1}$ increases and $I{D_2}$ decreases $\implies V_{out_1}$ decreases and $V_{out_2}$ increases.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/stage1_BATMAN.PNG}
+		\label{diffPairBATMAN}
+		\caption{Schematic for first stage of our discriminator, a classic differential pair}
+	\end{figure}
+	
+	This means that if set $V_{G_1} = V_{\text{pre-amp}}$ and $V_{G_2} = V_{\text{threshold}}$, then output $V_{out_2}$ of the differential pair will only increase when $V_{\text{pre-amp}} > V_{\text{threshold}}$.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/stage2_BATMAN.PNG}
+		\label{diffPairBATMAN2}
+		\caption{Schematic for next two stages of our discriminator, more differential pair amplifiers!}
+	\end{figure}
+	
+	In the first stages of the discriminator, we want to amplify the difference $V_{\text{pre-amp}} - V_{\text{threshold}}$ until we have a good enough gain to feed our signal to an $AC/DC$ converter that saturates low signals to $0V$ and high enough signals to $V_{DD}$. This process was empirical in my project, I added two more stages to get a signal over $1V$, then I decided it was good enough to convert to $DC$.
+	
+	It is interesting to note that:
+	
+	\begin{itemize}
+		\item Because the output of the preamplifier is small compared to the transistor's threshold voltage $V_{TH} \approx 0.6V$, we use PMOS transistors to works with a negative threshold.
+		\item In stages 2 and 3 of the discriminator, we reuse $V_{G_1}$ from the previous stage and we use the output of the previous stage as $V_{G_2} \implies$ this difference gives us a factor of 2 in our gain.
+		\item We replace the resistors in the classic differential pair schematic with a current mirror, that allows us to double the drain current at the second transistor in the pair $\implies$ another factor of 2 to our gain.
+	\end{itemize}
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/stage3_BATMAN.PNG}
+		\label{stageBATMAN3}
+		\caption{Schematic for the AC/DC converter of our discriminator (a logical buffer)}
+	\end{figure}
+	
+	The basic block of our AC/DC converter, is the inverter. We now that when the PMOS transistor in the inverter is conducting, the output will saturate to $V_DD$ and when the $NMOS$ transistor is conducting the output will saturate to $V_{SS}$. Here, we observe that each amplifying stage in our discriminator was inverting, and because we had 3 of them the signal we feed our AC/DC converter will be inverted. This implies that if we use a buffer (two cascaded inverter gates), we will get a saturated non-inverted signal.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/discrim_BATMAN.PNG}
+		\label{BATMAN}
+		\caption{Complete schematic of discriminator circuit}
+	\end{figure} 
 	
 	\subsection{Layout}
 	
+	The layout procedure was very similar to what we did in the pre-amplifier, this time I used very wide connections right away!
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/layout_BATMAN.PNG}
+		\label{layoutBATMAN}
+		\caption{Layout for discriminator circuit}
+	\end{figure}
+	
+	\newpage
+	
 	\subsection{Simulation Results}
 	
+	In this subsection, let's analyze the transient response for the discriminator module.
+	
+	\begin{figure}[h!]
+		\centering
+		\includegraphics[width = .6\textwidth]{images/discrim_plotBATMAN.PNG}
+		\label{plotBATMAN}
+		\caption{Transient response for the discriminator}
+	\end{figure}
+	
+	We can we observe a rectangular pulse of duration $\approx 40$ns at $V_{DD} = 1.5$V, exactly the type of shape we wanted to see in our output!
+	
+	In our introduction, we did not specify any requirements on the pulse duration, but it is important to mention that depending on the application this parameter can be important. For example, maybe we are working with high-frequency photon emissions, in this case we need the pulses to be short to differentiate consecutive detections.
+	
+	\newpage
+	
 	\section{Conclusion}
+	
+	The goal of our project was to design a \texttt{SiPM} circuit capable of single photon detection (which we modeled in our input module). Given the results of transient simulation analysis for our discriminator, I think we can conclude that our goal was achieved. I learned a lot during this project: working with Cadence Virtuoso (which is very used in the market of analog electronics), using several classic blocks we saw in the course PHY559A in practice like current mirrors, cascode amplifiers and the differential pair. It was interesting to manipulate the size of the transistors and the polarisation resistances to get small changes in the output signal characteristics. Working with the layout was interesting because it shows how non-ideal conditions can affect the result of the design, the fact that the same schematic could get two vastly different gains for our pre-amplifier layout because of the metal connections was very interesting!
+	
+	Finally, I would like to thanks the professors Christophe de la Taille, Damien Thienport and Jean-Charles Vanel for the courses I followed in this academic year!
 	
 	\bibliographystyle{plain} % We choose the "plain" reference style
 	\bibliography{refs} % Entries are in the refs.bib file
