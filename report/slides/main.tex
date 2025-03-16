@@ -1,0 +1,280 @@
+\documentclass[aspectratio=169,xcolor=dvipsnames]{beamer}
+\usetheme{SimpleDarkBlue}
+
+\usepackage{hyperref}
+\usepackage{graphicx} % Allows including images
+\usepackage{booktabs} % Allows the use of \toprule, \midrule and \bottomrule in tables
+\usepackage{subfigure}
+\usepackage{amsmath, amssymb, amscd, amsthm, amsfonts}
+
+%----------------------------------------------------------------------------------------
+%    TITLE PAGE
+%----------------------------------------------------------------------------------------
+
+\title{Microelectronics Experimental ASIC Design}
+\subtitle{Project Defense}
+
+\author{Gabriel Pereira de Carvalho}
+
+\institute
+{
+	Ecole polytechnique
+}
+\date{March 18, 2025} % Date, can be changed to a custom date
+
+\begin{document}
+	
+	\begin{frame}
+		% Print the title page as the first slide
+		\titlepage
+	\end{frame}
+	
+	\begin{frame}{Overview}
+		\tableofcontents
+	\end{frame}
+	
+	%------------------------------------------------
+	\section{Introduction}
+	%------------------------------------------------
+	
+	\begin{frame}{Project goals}
+		\begin{itemize}
+			\item Design a SiPM(silicon photomultiplier) for single photon detection in the context of accelerator-based particle physics experiments.
+			\item Application requires high sensitivity, high efficiency and fast rise/fall times.
+		\end{itemize}
+		
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width = .5\textwidth]{sipm.jpg}
+			\caption{Casing for a commercial SiPM}
+		\end{figure}
+	\end{frame}
+	
+	\begin{frame}{Another use case: PET scan imaging}
+		\begin{figure}[h]
+			\centering
+			\includegraphics[width = .6\textwidth]{../images/PETscan.PNG}
+			\caption{Photon detection in PET scan}
+		\end{figure}
+		\begin{block}{}
+			The model we used for our photodetector input signal is not universal for all SiPM applications!
+		\end{block}
+	\end{frame}
+	
+	\section{Modeling photodetector input signal}
+	
+	\begin{frame}{Parameters}
+		We consider a $100x100$ array of Single Photon Avalanche Diodes (SPADs).
+		
+		\begin{itemize}
+			\item each cell has dimensions $50\mu m \times 50\mu m$, a capacitance of $100fF$ and a quenching resistor of $100k\Omega$;
+			\item one photo electron corresponds to a charge of $100fC$ which is equivalent to a current pulse of $1mA$;
+			\item the duration of the pulse is estimated as $100ps$, with a rise time of $1ps$ and a fall time of $1ps$.
+		\end{itemize}
+		
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .5\textwidth]{geiger.PNG}
+		\end{figure}
+ 	\end{frame}	
+ 	
+ 	\begin{frame}{Photodetector schematic}
+ 		\begin{figure}[h]
+ 			\centering
+ 			\includegraphics[width = .7\textwidth]{../images/SiPM_block.PNG}
+ 			\caption{Photodetector block schematic}
+ 		\end{figure}
+ 		\begin{block}{}
+ 			The parasitic inductance in the readout bus models the effect of current from previous detections, that induced a voltage in the conductor.
+ 		\end{block}
+ 	\end{frame}
+
+	\section{Preamplifier Block}
+	
+	\begin{frame}{CMOS Current Source}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .6\textwidth]{../images/TwoStage_currentMirror.PNG}
+			\label{Current_Source}
+			\caption{Current source design: NMOS current sink with PMOS current source}
+		\end{figure}
+		\begin{block}{}
+			Two stage current source increases output resistance and helps stabilize output current!
+		\end{block}
+	\end{frame}
+	
+	\begin{frame}{Cascode amplifier configuration}
+		\begin{columns}[c] % The "c" option specifies centered vertical alignment while the "t" option is used for top vertical alignment
+			
+			\column{.45\textwidth} % Left column and width
+			\begin{figure}[h!]
+				\centering
+				\includegraphics[width = .7\textwidth]{../images/cascode_preamp.PNG}
+				\label{Cascode_preamp}
+				\caption{Final cascode configuration for preamplifier}
+			\end{figure}
+			
+			\column{.45\textwidth} % Right column and width
+			Compared to single stage CS amplifier, cascode has:
+			\begin{itemize}
+				\item higher gain $A_v = \left(\frac{g_{m_1}}{g_{ds_1}}\right)\cdot \left(\frac{g_{m_2}}{g_{ds_2}}\right)$;
+				\item larger bandwidth (consequence of the Miller Effect $f_{-3db} = \frac{g_m}{2\pi(C_{gs} + C_{gd})}$)
+			\end{itemize}
+			
+		\end{columns}
+	\end{frame}
+	
+	\begin{frame}{Complete pre-amplifier schematic}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .6\textwidth]{../images/preamp_ROBIN.PNG}
+			\label{preamp_robin}
+			\caption{Complete schematic for the preamplifier module}
+		\end{figure}
+	\end{frame}
+	
+	\begin{frame}{Layout view for pre-amplifier}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .4\textwidth]{../images/avExtracted.PNG}
+			\label{avExtracted}
+		\end{figure}
+		\begin{block}{}
+			Represents real circuit on silicon! We ran DRC (to check circuit feasibility) and LVS (to compare nets and devices layout and schematic).
+		\end{block}
+	\end{frame}
+	
+	\begin{frame}{Importance of path widths on layout!}
+		\begin{figure}[h!]
+			\centering
+			\subfigure[In first layout, output peaks at $\approx 0.5mV$]{
+				\includegraphics[width=.5\textwidth]{../images/Config_avExtracted_firstSimulation.PNG}
+				\label{config1}
+			}
+			\hfill
+			\subfigure[In first layout, output peaks at $\approx 2.3mV$]{
+				\includegraphics[width=.5\textwidth]{../images/Config_avExtracted_secondSimulation.PNG}
+				\label{config2}
+			}
+			\caption{Transient response (minus DC) simulations on extracted views. In (b), gain is bigger by a factor of $\approx 4.6$.}
+			\label{simuConfig}
+		\end{figure}
+	\end{frame}
+	
+	\begin{frame}{Choosing a threshold voltage for the discriminator}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .6\textwidth]{../images/transientResponse_PREAMP.PNG}
+			\label{fig:transient}
+			\caption{Transient response (with DC bias)}
+		\end{figure}
+		\begin{block}{}
+			Considering RMS noise of $\approx 0.7mV$, we consider $435mV$ a good threshold!
+		\end{block}
+	\end{frame}
+	
+	\section{Discriminator block}
+	
+	\begin{frame}{Goals}
+		After the pre-amplifier, our goal is to take the output signal and
+		\begin{enumerate}
+			\item determine if a photon was detected (the peak of the signal is above a certain threshold voltage);
+			\item and produce a digital signal if a photon was detected (so far, we are working only with analog signals, but if we want to use this signal in software, it must saturate to $V_{SS}$ or $V_{DD}$).
+		\end{enumerate}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .65\textwidth]{../images/discrim_BATMAN.PNG}
+			\label{BATMAN}
+			\caption{Complete schematic of discriminator circuit}
+		\end{figure} 
+	\end{frame}
+	
+	\begin{frame}{Differential Pair principle}
+		\begin{columns}[c] % The "c" option specifies centered vertical alignment while the "t" option is used for top vertical alignment
+			
+			\column{.45\textwidth}
+			\begin{figure}[h!]
+				\centering
+				\includegraphics[width = .6\textwidth]{../images/diffPair.PNG}
+				\label{diffPair}
+				\caption{Schematic for a differential pair amplifier}
+			\end{figure}
+			
+			\column{.45\textwidth}
+			DC operating point
+			\begin{align}
+				\begin{cases}
+					I_{D_1} + I_{D_2} &= I_Q \\
+					I_{D_1} &= I_{D2} \quad \text{ by symmetry}
+				\end{cases}
+			\end{align}
+			
+			Now, we observe the differential behavior of the block 
+			
+			$V_{G_1} > V_{G_2}$
+			\\ $\implies V_{GS_1} > V_{GS_2}$
+			\\$\implies I_{D_1} > I_{D_2}$
+		\end{columns}
+	\end{frame}
+	
+	\begin{frame}{First discriminator stage}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .6\textwidth]{../images/stage1_BATMAN.PNG}
+			\label{diffPairBATMAN}
+			\caption{Schematic for first stage of our discriminator, a classic differential pair}
+		\end{figure}
+		\begin{block}{}
+			Because the output of the preamplifier is small compared to the transistor's threshold voltage $V_{TH} \approx 0.6V$, we use PMOS transistors to works with a negative threshold.
+		\end{block}
+	\end{frame}
+	
+	\begin{frame}{Second and third discriminator stage}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .6\textwidth]{../images/stage2_BATMAN.PNG}
+			\label{diffPairBATMAN2}
+			\caption{Schematic for next two stages of our discriminator, more differential pair amplifiers!}
+		\end{figure}
+		\begin{block}{}
+			\begin{itemize}
+				\item In stages 2 and 3 of the discriminator, we reuse $V_{G_1}$ from the previous stage and we use the output of the previous stage as $V_{G_2} \implies$ this difference gives us a factor of 2 in our gain.
+				\item We replace the resistors in the classic differential pair schematic with a current mirror, that allows us to double the drain current at the second transistor in the pair $\implies$ another factor of 2 to our gain.
+			\end{itemize}
+		\end{block}
+	\end{frame}
+	
+	\begin{frame}{Convert to digital signal}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .6\textwidth]{../images/stage3_BATMAN.PNG}
+			\label{stageBATMAN3}
+			\caption{Schematic for the AC/DC converter of our discriminator (a logical buffer)}
+		\end{figure}
+	\end{frame}
+	
+	\begin{frame}{Layout for discriminator block}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .6\textwidth]{../images/layout_BATMAN.PNG}
+			\label{layoutBATMAN}
+			\caption{Layout for discriminator circuit}
+		\end{figure}
+	\end{frame}
+	
+	\begin{frame}{Transient reponse simulation for discriminator}
+		\begin{figure}[h!]
+			\centering
+			\includegraphics[width = .6\textwidth]{../images/discrim_plotBATMAN.PNG}
+			\label{plotBATMAN}
+			\caption{Transient response for the discriminator}
+		\end{figure}
+	\end{frame}
+	
+	\begin{frame}
+		\Huge{\centerline{\textbf{Thank you for your attention!}}}
+	\end{frame}
+	
+	%----------------------------------------------------------------------------------------
+	
+\end{document}
